@@ -14,7 +14,7 @@ Snakemake workflow for processing CAPPSeq data sequenced using IDT's UMIs. Note 
 ## Running on Compute Canada
 1. Configure as above
 2. Edit the cluster config file under `profiles/config.yaml` (Compute Canada uses Slurm Workload Manager)
-3. Run the workflow using `snakemake -s hpc_cappseq_umi_workflow copy.smk --profile profiles/`
+3. Run the workflow using `snakemake -s hpc_cappseq_umi_workflow.smk --profile profiles/`
 
 ## Workflow
 ![CAPPSeq_workflow](https://user-images.githubusercontent.com/22357668/183552741-0842ba1e-19b6-4a64-8aae-4651dbbaa1a8.png)

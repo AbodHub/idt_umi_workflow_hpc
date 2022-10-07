@@ -573,10 +573,34 @@ checkpoint qc_multiqc:
     shell:
         "multiqc --interactive --config {params.config} --outdir {params.outdir} --force {params.modules} {params.dupl_dir} {params.errorrate_dir} {params.insertsize_dir} {params.oxog_dir} {params.hsmet_dir} {params.fastqc_dir} {params.validsam_dir} {params.famsize_dir} > {log}"
 
+
+rule vardict:
+    input:
+        bam = rules.picard_annotate_bam.output.bam,
+        refgenome = config["cappseq_umi_workflow"]["refgenome"],
+    output:
+        vcf = outdir + os.sep + "V1-vardict" + os.sep + "{samplename}.vcf"
+    log:
+        outdir + os.sep + "logs" + os.sep + "{samplename}.vardict.log"
+    params:
+        vardictexec = vardict + os.sep + "build" + os.sep + "install" + os.sep + "VarDict" + os.sep + "bin" + os.sep + "VarDict",
+        testrandbias = vardict + os.sep + "VarDict" + os.sep + "teststrandbias.R",
+        validatevcf = vardict + os.sep + "VarDict" + os.sep + "var2vcf_valid.pl",
+        panelbed = config["cappseq_umi_workflow"]["captureregions"]
+    envmodules:
+        "r",
+        "perl",
+        "samtools",
+        "java"
+    threads:
+        config["cappseq_umi_workflow"]["vardict_threads"]
+    shell:
+        "{params.vardictexec} -G {input.refgenome} -f 0.01 -N {wildcards.samplename} -b {input.bam} -z -c 1 -S 2 -E 3 -g 4 -th {threads} {params.panelbed} | Rscript {params.testrandbias} | {params.validatevcf} -N {wildcards.samplename} -E -f 0.01 > {output.vcf} 2> {log}"
+
 rule all:
     input:
         expand([str(rules.picard_annotate_bam.output.bam),
-                str(rules.qc_multiqc.output.html)],
+                str(rules.qc_multiqc.output.html),
+                str(rules.vardict.output.vcf)],
             samplename= samplelist)
     default_target: True
-
