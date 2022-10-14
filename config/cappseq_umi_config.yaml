@@ -3,10 +3,16 @@ cappseq_umi_workflow:
   captureregions: "__UPDATE__"
   captureregionsil: "__UPDATE__"  # Picard Interval List
   dbsnpvcf: "__UPDATE__"  # Should be BGzipped and TABIX indexed
+  normalbam: "__UPDATE__"
+
+  fgbio: "__UPDATE__"
+  vcf2maf: "__UPDATE"
+  vardict: "__UPDATE__"
 
   # Input and output
   samplefile: "config/samplelist.tsv"
   baseoutdir: "__UPDATE__"
+  datadir: "__UPDATE__"
 
   readgroup:
     centre: "__UPDATE__"
@@ -15,10 +21,13 @@ cappseq_umi_workflow:
     description: "CAPPSeq of lymphoma-associated genes"
 
   # Threads
-  bwa_threads: 8
-  duplexconsensus_threads: 8
-  samtools_sort_threads: 4
-  basequal_threads: 2
+  bwa_threads: 24
+  duplexconsensus_threads: 12
+  samtools_sort_threads: 8
+  basequal_threads: 4
+  fgb_groupumi: 12
+  picard_annot_threads: 4
+  vardict_threads: 4
 
   # Barcode an duplex information
   barcodelength: "8"

@@ -359,6 +359,8 @@ rule picard_annotate_bam:
     envmodules:
         "samtools",
         "picard"
+    threads:
+        config["cappseq_umi_workflow"]["picard_annot_threads"]     
     log:
         outdir + os.sep + "logs" + os.sep + "{samplename}.picardannotate.log"
     shell:
@@ -573,34 +575,63 @@ checkpoint qc_multiqc:
     shell:
         "multiqc --interactive --config {params.config} --outdir {params.outdir} --force {params.modules} {params.dupl_dir} {params.errorrate_dir} {params.insertsize_dir} {params.oxog_dir} {params.hsmet_dir} {params.fastqc_dir} {params.validsam_dir} {params.famsize_dir} > {log}"
 
-
-rule vardict:
+vardict = config["cappseq_umi_workflow"]["vardict"]
+rule vcaller:
     input:
         bam = rules.picard_annotate_bam.output.bam,
         refgenome = config["cappseq_umi_workflow"]["refgenome"],
     output:
-        vcf = outdir + os.sep + "V1-vardict" + os.sep + "{samplename}.vcf"
+        vardictvcf = outdir + os.sep + "V1-vardict" + os.sep + "{samplename}.vcf",
+        gatkvcf = outdir + os.sep + "V2-mutect" + os.sep + "{samplename}.vcf"
     log:
-        outdir + os.sep + "logs" + os.sep + "{samplename}.vardict.log"
+        vardictlog = outdir + os.sep + "logs" + os.sep + "{samplename}.vardict.log",
+        gatklog = outdir + os.sep + "logs" + os.sep + "{samplename}.mutect.log"
     params:
         vardictexec = vardict + os.sep + "build" + os.sep + "install" + os.sep + "VarDict" + os.sep + "bin" + os.sep + "VarDict",
         testrandbias = vardict + os.sep + "VarDict" + os.sep + "teststrandbias.R",
         validatevcf = vardict + os.sep + "VarDict" + os.sep + "var2vcf_valid.pl",
-        panelbed = config["cappseq_umi_workflow"]["captureregions"]
+        captureregions = config["cappseq_umi_workflow"]["captureregions"],
+        normalbam = config["cappseq_umi_workflow"]["normalbam"],
+        captureregionsil = config["cappseq_umi_workflow"]["captureregionsil"]
     envmodules:
         "r",
         "perl",
         "samtools",
-        "java"
+        "java",
+        "gatk"
     threads:
         config["cappseq_umi_workflow"]["vardict_threads"]
     shell:
-        "{params.vardictexec} -G {input.refgenome} -f 0.01 -N {wildcards.samplename} -b {input.bam} -z -c 1 -S 2 -E 3 -g 4 -th {threads} {params.panelbed} | Rscript {params.testrandbias} | {params.validatevcf} -N {wildcards.samplename} -E -f 0.01 > {output.vcf} 2> {log}"
+        """
+        {params.vardictexec} -G {input.refgenome} -f 0.01 -N {wildcards.samplename} -b {input.bam} -z -c 1 -S 2 -E 3 -g 4 -th {threads} {params.captureregions} | Rscript {params.testrandbias} | {params.validatevcf} -N {wildcards.samplename} -E -f 0.01 > {output.vardictvcf} 2> {log.vardictlog}
+        gatk Mutect2 -R {input.refgenome} -I {input.bam} -I {params.normalbam} -normal GIAB --native-pair-hmm-threads {threads} -L {params.captureregionsil} -O {output.gatkvcf} 2> {log.gatklog}
+        """
+
+rule gatkmaf:
+    input:
+        gatkvcf = rules.vcaller.output.gatkvcf
+    output:
+        gatkmaf = outdir + os.sep + "M-mafs" + os.sep + "gatk" + os.sep + "{samplename}.maf"
+    envmodules:
+        "perl",
+        "bioperl",
+        "samtools",
+        "tabix"
+    log:
+        outdir + os.sep + "logs" + os.sep + "{samplename}.gatkmaf.log"
+    threads:
+        8
+    params:
+        vcf2maf = "/home/abod/projects/def-njohnson/tools/mskcc-vcf2maf-754d68a/vcf2maf.pl",
+        sampleid = "{samplename}"
+    shell:
+        "perl {params.vcf2maf} --input-vcf {input.gatkvcf} --output-maf {output.gatkmaf} --tumor-id {params.sampleid} --normal-id GIAB --vep-forks {threads} --verbose 2> {log}"
+
 
 rule all:
     input:
         expand([str(rules.picard_annotate_bam.output.bam),
                 str(rules.qc_multiqc.output.html),
-                str(rules.vardict.output.vcf)],
+                str(rules.gatkmaf.output.gatkmaf)],
             samplename= samplelist)
     default_target: True
